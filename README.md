@@ -22,3 +22,7 @@ Create a pull request to my repository
 ## Population Change in Pennslyvania
 
 ![population-growth](https://github.com/joshsack1/612-PR/blob/main/pop-growth.png)
+
+## Relative Prevalence of OASI and DI in Pennsylvania
+
+![relative-oasi-di](https://github.com/joshsack1/612-PR/blob/main/relative_social_security.png)
