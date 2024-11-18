@@ -16,3 +16,9 @@ Working out of the repository you have created, fix the errors in the qmd file t
 ## Step 3: Create a Pull request
 
 Create a pull request to my repository
+
+# The Images
+
+## Population Change in Pennslyvania
+
+![population-growth.png]
