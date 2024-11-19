@@ -1,4 +1,195 @@
+---
+title: "Github Fix Problems"
+author: "Joshua Sack"
+format:
+  html:
+    df-print: paged
+---
+
 # Get a Census Key
 Go to the U.S. Census Bureau's [Developer Site](https://www.census.gov/developers/) and request an API Key.
 This process should take a few minutes.
 Don't use your AU email, as it takes much longer.
+
+# Code
+
+## Load Libraries
+
+```{r}
+#| label: libraries
+#| echo: true
+#| output: false
+library(tidyverse)
+library(tidycensus)
+library(sf)
+```
+
+## Connect to the Census API
+It is important to note that you should never share your API key with others.
+Therefore, if you are not comfortable setting up an environment variable, run it locally, and in your repo, delete this line of code before committing it.
+
+If you want to add an environment variable, you can do so by editing the `.zshrc` or `.bashrc` file in your home (`~`) directory.
+
+```bash
+export CENSUS_API_KEY="your_key_here"
+```
+
+Then, in your R script, you can use the following code to set the environment variable.
+
+```{r}
+#| label: census-api
+#| echo: true
+#| output: false
+census_api_key(Sys.getenv("CENSUS_API_KEY"))
+```
+
+## Read in the Social Security Data I provide
+
+```{r}
+#| label: social-security
+#| echo: true
+#| output: true
+social_security <- read.csv("data/social-security.csv")
+social_security <- social_security |>
+    mutate(GEOID = paste0(ANSI))
+head(social_security)
+```
+
+## Pull the Census Data
+
+```{r}
+#| label: census-data
+#| echo: true
+#| output: false
+data_2018_2022 <- get_acs(
+  geography = "county",
+  variables = c(
+    total_pop = "B03003_001" # Total population
+  ),
+  state = "PA",
+  year = 2022,
+  survey = "acs5",
+  output = "wide",
+  geometry = TRUE
+)
+
+# Get data for 2013-2017 ACS
+data_2013_2017 <- get_acs(
+  geography = "county",
+  variables = c(
+    total_pop = "B03003_001" # Total population
+  ),
+  state = "PA",
+  year = 2017,
+  survey = "acs5",
+  output = "wide",
+  geometry = TRUE
+)
+```
+
+## Create the First Figure
+
+### Use the Two Census Data Sets to Create a Single Data Set
+
+```{r}
+#| label: merge-census-data
+#| echo: true
+#| output: true
+data_2018_2022_selected <- data_2018_2022 |>
+  select(GEOID, NAME, pop_2018_2022 = total_popE, geometry)
+
+# Select relevant columns from the 2013-2017 data (no geometry needed)
+data_2013_2017_selected <- data_2013_2017 |>
+  st_set_geometry(NULL) |>
+  select(GEOID, pop_2013_2017 = total_popE)
+
+# Merge datasets on GEOID
+data_combined <- data_2018_2022_selected |>
+  left_join(data_2013_2017_selected, by = "GEOID")
+
+# Calculate change in population
+data_combined <- data_combined |>
+  mutate(pop_change = (pop_2013_2017 - pop_2018_2022)/pop_2013_2017)
+# Take a look at the resulting dataset
+data_combined
+```
+
+### Create the first figure: population change
+```{r}
+#| label: figure-pop-change
+#| echo: true
+#| output: true
+pop_fig <- ggplot(data_combined) |>
+  geom_sf(aes(fill = pop_change)) +
+  scale_fill_gradient2(
+    low = "red", mid = "white", high = "green",
+    midpoint = 0, labels = percent
+  ) +
+  labs(
+    title = "Population Growth in ACS (2013-2017 to 2018-2022)",
+    fill = "% Change"
+  ) +
+  theme_minimal()
+
+pop_fig
+# Save the figure using ggsave
+# ggsave("fixed-pop-change.png", pop_fig)
+```
+## Create the Second Figure
+
+### Merge the Social Security Data with the Census Data
+```{r}
+#| label: merge-social-security
+#| echo: true
+#| output: true
+social_geo_data <- data_2018_2022_selected |>
+    left_join(social_security, by = "GEOID")
+# Check for mismatched data
+data_error <- anti_join(social_security, data_2018_2022_selected, by = "GEOID")
+dim(data_error)[1] == 0 # Should return TRUE
+```
+
+### Calculate the relative population share of OASI and DI beneficiaries
+
+```{r}
+# Calculate the ratio of over65 to DI recipients
+ratio_data <- social_geo_data |>
+    mutate(over65Share = (Over65 / pop_2018_2022)) |>
+    mutate(disabledShare = (DisabledWorkers / pop_2018_2022))
+
+# Calculate the state totals
+state_totals <- social_geo_data |>
+    summarize(
+        total_pop = sum(pop_2018_2022, na.rm = TRUE),
+        total_over65 = sum(Over65, na.rm = TRUE),
+        total_disabled = sum(DisabledWorkers, na.rm=TRUE)
+    )
+state_over65 <- state_totals$total_over65 / state_totals$total_pop
+state_disabled <- state_totals$total_disabled / state_totals$total_pop
+
+state_disabled_to_over65 <- state_disabled / state_over65
+ratio_data <- ratio_data |>
+    mutate(double_ratio = (disabledShare / over65Share) + state_disabled_to_over65)
+```
+
+### Make the Plot
+
+```{r}
+#| label: figure-ratio
+#| echo: true
+#| output: true
+relative_plot <- ggplot(ratio_data) %>% 
+    geom_sf(aes(fill=double_ratio)) +
+    scale_fill_gradient2(
+        low = "red", mid = "white", high = "green"
+    ) +
+    labs(
+        title = "Relative Population Share DI to OASI to State Average",
+        fill = "Ratio of Disabled to Over 65"
+    ) +
+    theme_minimal()
+
+relative_plot
+# Save the figure using ggsave
+# ggsave("fixed-ratio.png", relative_plot)
+```
