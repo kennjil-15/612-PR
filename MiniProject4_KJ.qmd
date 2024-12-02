@@ -31,7 +31,7 @@ Therefore, if you are not comfortable setting up an environment variable, run it
 If you want to add an environment variable, you can do so by editing the `.zshrc` or `.bashrc` file in your home (`~`) directory.
 
 ```bash
-export CENSUS_API_KEY="your_key_here"
+export CENSUS_API_KEY= "your_key_here"
 ```
 
 Then, in your R script, you can use the following code to set the environment variable.
@@ -39,8 +39,9 @@ Then, in your R script, you can use the following code to set the environment va
 ```{r}
 #| label: census-api
 #| echo: true
-#| output: false
-census_api_key(Sys.getenv("CENSUS_API_KEY"))
+#| output: false\
+CENSUS_API_KEY = "my_key"
+readRenviron("~/.Renviron")
 ```
 
 ## Read in the Social Security Data I provide
@@ -61,11 +62,12 @@ head(social_security)
 #| label: census-data
 #| echo: true
 #| output: false
+#readRenviron("~/.Renviron")
+#CENSUS_API_KEY = "511c59dc7d36807c06659ecc30ba8291ea8df37b"
 data_2018_2022 <- get_acs(
   geography = "county",
   variables = c(
-    total_pop = "B03003_001" # Total population
-  ),
+    total_pop = "B01001_001E"), # Total population
   state = "PA",
   year = 2022,
   survey = "acs5",
@@ -77,8 +79,7 @@ data_2018_2022 <- get_acs(
 data_2013_2017 <- get_acs(
   geography = "county",
   variables = c(
-    total_pop = "B03003_001" # Total population
-  ),
+    total_pop = "B03003_001"), # Total population
   state = "PA",
   year = 2017,
   survey = "acs5",
